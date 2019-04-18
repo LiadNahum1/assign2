@@ -68,6 +68,23 @@
     free_node eax
 %endmacro
 
+%macro pow_start 0
+    cmp dword [stp], 2
+    jl insufficient_error
+    dec dword [stp] ;now will point on the top number
+    getAddress first_element
+    dec dword [stp]
+    getAddress second_element
+    ;push the first_element address into the stack
+    mov edx, [stp]
+    mov ecx, [first_element] ;the address of the first node in the heap is in ecx
+   
+    inc dword [stp]
+    mov eax, [second_element] ;eax hold the address of the Y
+    mov byte bl, [eax] ;bl hold thw number Y
+    inc eax ;to get the pointer to the next node
+%endmacro
+
 section	.rodata			; we define (global) read-only variables in .rodata section
 	format_string: db "%s", 10, 0	; format string
     format_hex:  db "%X", 0
@@ -377,34 +394,21 @@ duplicate_loop:
     
     
 pos_power:
-    dec dword [stp] ;now will point on the top number
-    getAddress first_element
-    dec dword [stp]
-    getAddress second_element
-    ;push the first_element address into the stack
-    mov edx, [stp]
-    mov ecx, [first_element] ;the address of the first node in the heap is in ecx
-   
-    inc dword [stp]
-    mov eax, [second_element] ;eax hold the address of the Y
-    mov byte bl, [eax] ;bl hold thw number Y
-    inc eax ;to get the pointer to the next node
+    pow_start
+    ;check if Y is grater than 200
     cmp dword [eax], 0
     jnz error_Power;Y greater then 200
     mov dword [second_element] ,0 ;to zero the value of secound element
     add byte [second_element], bl ;[second_element] is Y 
     cmp byte [second_element], 0xc8 ;Y greater then 200
     ja error_Power
-   
-   
     mov [stackOp + edx*4], ecx ;make the first_element be on top of the stack
-   
-   
-   loop_shl:
+      
+loop_shl:
     mov byte [carry], 0 ;rest carry
     cmp dword [second_element], 0 ;finished going threw Y
     jz start_loop
-    loop_on_number:
+loop_on_number:
     cmp dword [first_element], 0 ;end of number [first_element] is the address of the current node
     jz end_of_digit_shl    
     mov dword edx, 0;rest edx
@@ -448,7 +452,37 @@ create_node_pow:
     
   
 neg_power:
+    pow_start ;initialize first_element to be the adrress and secound to be the Y number
+    mov [stackOp + edx*4], ecx ;make the first_element be on top of the stack
+loop_shr:
+    mov byte [carry] ,0 ;rest carry
+    cmp dword [second_element] ,0
+    jz start_loop
     
+   call shr_fanction
+    mov dword [first_element] , ecx
+    dec dword [second_element]
+    jmp loop_shr
+
+    
+shr_fanction:
+    cmp dword [first_element], 0 
+    jnz continue_1
+    ret
+continue_1:
+    mov dword edx, 0;rest edx
+    mov byte dl, [carry] ; dl will save the carry that was needed to be add after we will shl
+    mov eax, [first_element];eax is the adrress of the firstbyte of the first element
+    mov byte bl, [eax]; bl is the value of the element
+    shr bl,1 ;power of two
+    save_carry_mac
+    cmp byte dl, 0 ;if there is no carry no need to add
+    jz contintue_2
+    add byte dl, 15 ;make dl be 16
+    add byte bl,dl ;add the carry of the prev node to the number 
+contintue_2:
+    
+
 n1bits:
 square_root:
    jmp start_loop
