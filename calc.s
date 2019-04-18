@@ -22,6 +22,13 @@
     add esp, 4
 %endmacro 
 
+%macro print_string 1
+    push %1
+    push format_string
+    call printf 
+    add dword esp, 8 ;pop printf arguments 
+%endmacro
+
 %macro next_node 1
     inc dword [%1] ;next byte of the element 
     mov ebx, [%1] ;save the next adrress
@@ -68,13 +75,13 @@ section	.rodata			; we define (global) read-only variables in .rodata section
 	
 section .data
     numOp: dd 0 ;number of operations in the program 
-    Insufficient_string: db 'Error: Insufficient Number of Arguments on Stack'
+    Insufficient_string: db "Error: Insufficient Number of Arguments on Stack",0
+    over_flow_string: db "Error: Operand Stack Overflow",0
+    calc_string: db "calc:",0
+    over_200_string: db "Error: Y is greater than 200",0
+    empty_string: db "",0
     stp: dd 0 ;points to the first free location in the stack 
-    calc_string: db 'calc:'
-    empty_string: db ''
-    bytes_to_malloc: dd 5
-    over_flow_string: db 'Error: Operand Stack Overflow'
-    
+    bytes_to_malloc: dd 5    
     index: dd 0 ;index in buffer_hex 
     carry: db 0 ;byte of the carry
     first_element: dd 0
@@ -121,10 +128,7 @@ start_loop:
     mov ecx, 0
     jmp initialize_buffer
 con:
-    push calc_string
-    push format_string
-    call printf 
-    add dword esp, 8 ;pop printf arguments 
+    print_string calc_string
     push buffer  ;get input from user  
     call gets
     add dword esp, 4 ;pop gets argument 
@@ -161,7 +165,7 @@ initialize_buffer:
     inc ecx
     jmp initialize_buffer
 push_number:
-    cmp dword [stp], 6
+    cmp dword [stp], 5
     jz overflow_error ; if stack is full print error
     dec dword [numOp] ;;number is not operation
     mov ecx, 0; start counter to convertion action
@@ -343,6 +347,8 @@ next_line:
     jmp start_loop
     
 duplicate:
+    cmp dword [stp], 0
+    jz insufficient_error
     dec dword [stp] ;now will point on the top number
     getAddress first_element
     inc dword [stp]
@@ -446,22 +452,21 @@ neg_power:
 n1bits:
 square_root:
    jmp start_loop
-error_Power:
-    add dword [stp], 2
-    push calc_string
-    push format_string
-    call printf 
-    add dword esp, 8 ;pop printf arguments 
-   
-insufficient_error:
 
+   
+error_Power:
+    inc dword [stp]
+    print_string over_200_string
+    jmp start_loop
+insufficient_error:
+    print_string Insufficient_string
+    jmp start_loop
 overflow_error:
+    print_string over_flow_string
     jmp start_loop
     
     
-    
-    
-    ;some help code
+;some help code
 delete_zero:
     cmp byte [buffer + ecx], 0 ;if reached end and all zerro
     jz put_zero
