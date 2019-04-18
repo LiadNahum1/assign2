@@ -341,7 +341,35 @@ next_line:
     call printf
     add esp, 8
     jmp start_loop
+    
 duplicate:
+    dec dword [stp] ;now will point on the top number
+    getAddress first_element
+    inc dword [stp]
+    ;next lines will preper were to put the argumant we create
+    mov eax, [stp]
+    mov dword [put], stackOp
+    mov ebx, 4
+    mul ebx ;stp*4 will be in eax
+    add [put], eax ;[put] - is stckOP + stp*4
+duplicate_loop:
+    cmp dword [first_element],0
+    jz last_digit
+    push dword [bytes_to_malloc]  
+    call malloc ; eax is the pointer that malloc returns 
+    add esp, 4 
+    
+    mov ebx, [put] 
+    mov [ebx] , eax ;push pointer to first digit of the number into the stack operand 
+    mov ebx, [first_element]
+    mov dl, [ebx]
+    mov byte [eax], dl ;the first cell's value is the data (the sum)
+    inc eax ;the address of 4 bytes of the pointer 
+    mov [put], eax
+    next_node first_element ; move the the next byte 
+    jmp duplicate_loop
+    
+    
 pos_power:
     dec dword [stp] ;now will point on the top number
     getAddress first_element
