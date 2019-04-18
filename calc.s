@@ -422,7 +422,7 @@ loop_on_number:
     ;prepre next node with saving the address of the pointer in order to alloc new node later
     inc dword [first_element] ;next byte of the element 
     mov ebx, [first_element] ;save the next adrress
-    mov dword [put], ebx
+    mov dword [put], ebx ;put will be the adress wich points to first_element
     mov ebx, [ebx] ;address of the next node 
     mov [first_element], ebx ;move it back to the element
     jmp loop_on_number
@@ -454,12 +454,14 @@ create_node_pow:
 neg_power:
     pow_start ;initialize first_element to be the adrress and secound to be the Y number
     mov [stackOp + edx*4], ecx ;make the first_element be on top of the stack
+    mov ecx, [first_element] 
+    mov dword [put], ecx ;put now will save the address of the prev byte in order to change next address to zero after free
 loop_shr:
     mov byte [carry] ,0 ;rest carry
     cmp dword [second_element] ,0
     jz start_loop
     
-   call shr_fanction
+    call shr_fanction
     mov dword [first_element] , ecx
     dec dword [second_element]
     jmp loop_shr
@@ -470,6 +472,17 @@ shr_fanction:
     jnz continue_1
     ret
 continue_1:
+    push dword [first_element]
+    push dword [put]
+    mov eax, [first_element]
+    mov dword [put], eax ;make prev be current
+    next_node first_element ;advance curr to next
+    call shr_fanction
+    pop eax ;restore adress of put
+    mov [put], eax ;restore address of put
+    pop eax
+    mov [first_element], eax ;restore address of first_element
+
     mov dword edx, 0;rest edx
     mov byte dl, [carry] ; dl will save the carry that was needed to be add after we will shl
     mov eax, [first_element];eax is the adrress of the firstbyte of the first element
@@ -480,9 +493,24 @@ continue_1:
     jz contintue_2
     add byte dl, 15 ;make dl be 16
     add byte bl,dl ;add the carry of the prev node to the number 
+    mov byte dl, bl ;dl will save the number after addtion
 contintue_2:
-    
+    mov dword eax, [first_element] ;will save curr address
+    next_node first_element ;first now will be the address of next byte use onle ebx
+    cmp dword [first_element], 0
+    jz check_free
+contintue_3:
+    ret
 
+
+check_free:
+    mov dword [first_element],eax ;first_element is now pointing on the start of the current node
+    cmp byte dl ,0
+    jnz contintue_3
+    free_node first_element
+    inc dword [put] ;now put will point to the address that hold first_elemnt
+    mov dword [put], 0 ; now put will point to zero
+    ret
 n1bits:
 square_root:
    jmp start_loop
