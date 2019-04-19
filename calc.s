@@ -83,6 +83,15 @@
     mov eax, [second_element] ;eax hold the address of the Y
     mov byte bl, [eax] ;bl hold thw number Y
     inc eax ;to get the pointer to the next node
+     ;check if Y is grater than 200
+    cmp dword [eax], 0
+    jnz error_Power;Y greater then 200
+    mov dword [second_element] ,0 ;to zero the value of secound element
+    add byte [second_element], bl ;[second_element] is Y 
+    cmp byte [second_element], 0xc8 ;Y greater then 200
+    ja error_Power
+    mov [stackOp + edx*4], ecx ;make the first_element be on top of the stack
+   
 %endmacro
 
 section	.rodata			; we define (global) read-only variables in .rodata section
@@ -395,14 +404,6 @@ duplicate_loop:
     
 pos_power:
     pow_start
-    ;check if Y is grater than 200
-    cmp dword [eax], 0
-    jnz error_Power;Y greater then 200
-    mov dword [second_element] ,0 ;to zero the value of secound element
-    add byte [second_element], bl ;[second_element] is Y 
-    cmp byte [second_element], 0xc8 ;Y greater then 200
-    ja error_Power
-    mov [stackOp + edx*4], ecx ;make the first_element be on top of the stack
       
 loop_shl:
     mov byte [carry], 0 ;rest carry
@@ -440,7 +441,6 @@ create_node_pow:
     call malloc ; eax is the pointer that malloc returns 
     add esp, 4
     pop ecx
-        check:
     mov ebx, [put] ;stackop adrress
     mov [ebx] , eax ;push pointer to first digit of the number into the stack operand  
     ;put the number 1 in the byte
@@ -453,16 +453,16 @@ create_node_pow:
   
 neg_power:
     pow_start ;initialize first_element to be the adrress and secound to be the Y number
-    mov [stackOp + edx*4], ecx ;make the first_element be on top of the stack
-    mov ecx, [first_element] 
     mov dword [put], ecx ;put now will save the address of the prev byte in order to change next address to zero after free
-loop_shr:
+    mov dword [second_element] ,0 ;to zero the value of secound element
+    add byte [second_element], bl ;[second_element] is Y 
+   
+    loop_shr:
     mov byte [carry] ,0 ;rest carry
     cmp dword [second_element] ,0
     jz start_loop
-    
     call shr_fanction
-    mov dword [first_element] , ecx
+    mov dword [first_element] , ecx ;restore begin of number
     dec dword [second_element]
     jmp loop_shr
 
@@ -491,25 +491,32 @@ continue_1:
     save_carry_mac
     cmp byte dl, 0 ;if there is no carry no need to add
     jz contintue_2
-    add byte dl, 15 ;make dl be 16
+    add byte dl, 0X7F ;make dl be 128
     add byte bl,dl ;add the carry of the prev node to the number 
-    mov byte dl, bl ;dl will save the number after addtion
 contintue_2:
-    mov dword eax, [first_element] ;will save curr address
-    next_node first_element ;first now will be the address of next byte use onle ebx
-    cmp dword [first_element], 0
+    mov byte dl, bl ;dl will save the number after addtion
+    mov byte [eax] ,bl ;save bl to the place in the node
+    inc eax ;now will get next adrees
+    cmp dword [eax], 0
     jz check_free
 contintue_3:
     ret
 
 
 check_free:
-    mov dword [first_element],eax ;first_element is now pointing on the start of the current node
-    cmp byte dl ,0
+    mov dword eax,[first_element] ;to sea what we have in first_element
+    cmp byte dl ,0 ;check if the number in the last node is zero
     jnz contintue_3
-    free_node first_element
-    inc dword [put] ;now put will point to the address that hold first_elemnt
-    mov dword [put], 0 ; now put will point to zero
+    cmp dword ecx ,[first_element] ;if we are in the first element dont delete the number keep the zero
+    jz contintue_3
+    push ecx ;to save ecx
+    free_node eax
+    pop ecx
+    check:
+    mov eax, [put] ;to check valu of put
+    inc dword [put] ;now put will point to the address that hold first_element
+    mov dword eax, [put]
+    mov dword [eax], 0 ; now put will point to zero
     ret
 n1bits:
 square_root:
