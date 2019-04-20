@@ -97,6 +97,7 @@
 section	.rodata			; we define (global) read-only variables in .rodata section
 	format_string: db "%s", 10, 0	; format string
     format_hex:  db "%X", 0
+    format_int: db "%d",0
     format_hex_with_zero:  db "%02X", 0
 	
 section .data
@@ -160,7 +161,6 @@ con:
     add dword esp, 4 ;pop gets argument 
     cmp byte [buffer], 'q'
     jz end_func
-    inc dword [numOp]   ;count num of operations 
     cmp byte [buffer], '+'
     jz addition 
 %macro addEAX10 0	 ; if ZF == 0, add 10 to EAX
@@ -233,6 +233,7 @@ last_digit: ;
    jmp start_loop  
 
 addition:
+    inc dword [numOp]   ;count num of operations 
     cmp dword [stp], 2
     jl insufficient_error ;there is not enough element in the satck 
     dec dword [stp] ;now will point on the top number
@@ -329,6 +330,7 @@ end_make_addition:
   
     
 pop_print: ;TODO FREE ;TODO check the printing when bytes are not the last and lower than F 
+    inc dword [numOp]   ;count num of operations 
     cmp dword [stp], 0
     jz insufficient_error  ;there is no element in the satck 
     dec dword [stp] ;so it will point to the place of the last emlement
@@ -373,6 +375,7 @@ next_line:
     jmp start_loop
     
 duplicate:
+    inc dword [numOp]   ;count num of operations 
     cmp dword [stp], 0
     jz insufficient_error
     dec dword [stp] ;now will point on the top number
@@ -519,7 +522,10 @@ check_free:
     mov dword [eax], 0 ; now put will point to zero
     ret
 n1bits:
+inc dword [numOp]   ;count num of operations 
+    jmp start_loop
 square_root:
+inc dword [numOp]   ;count num of operations 
    jmp start_loop
 
    
@@ -533,7 +539,7 @@ insufficient_error:
 overflow_error:
     print_string over_flow_string
     jmp start_loop
-    
+
     
 ;some help code
 delete_zero:
