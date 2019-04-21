@@ -73,8 +73,12 @@
     jl insufficient_error
     dec dword [stp] ;now will point on the top number
     getAddress first_element
+    mov eax, [first_element]
+    mov dword [free_first]
     dec dword [stp]
     getAddress second_element
+    mov eax, [second_element]
+    mov dword [free_sec]
     ;push the first_element address into the stack
     mov edx, [stp]
     mov ecx, [first_element] ;the address of the first node in the heap is in ecx
@@ -93,12 +97,14 @@
     mov [stackOp + edx*4], ecx ;make the first_element be on top of the stack
    
 %endmacro
+%macro free 1
 
+%endmacro
 section	.rodata			; we define (global) read-only variables in .rodata section
 	format_string: db "%s", 10, 0	; format string
     format_hex:  db "%X", 0
-    format_int: db "%d",0
     format_hex_with_zero:  db "%02X", 0
+   
 	
 section .data
     numOp: dd 0 ;number of operations in the program 
@@ -107,6 +113,8 @@ section .data
     calc_string: db "calc:",0
     over_200_string: db "Error: Y is greater than 200",0
     empty_string: db "",0
+    input_string: db "User is trying to insert: ", 0
+    insert_string: db "the result inserted to the stack is: ", 0
     stp: dd 0 ;points to the first free location in the stack 
     bytes_to_malloc: dd 5    
     index: dd 0 ;index in buffer_hex 
@@ -114,7 +122,14 @@ section .data
     first_element: dd 0
     second_element: dd 0
     first_digit_not_zero: dd 0
+    free_first: dd 0
+    free_sec: dd 0
     put: dd 0 ;the next address to put in a new pointer (for creating the numbers)
+    isDebug: dd 0 ;0-not debug, 1-debug
+    ;TODO if not squer delete 
+    IR: dd 0    
+    reminder: dd 0
+    
 section .bss
     stackOp:resb 20 ; this is the stack of our operands - 4 bytes for each block - 5 blocks  
     buffer:resb 80 ;this is the buffer of the input from the user
@@ -133,15 +148,20 @@ section .text
     extern gets
     extern STDIN
 main:
+    startFunc
+    mov eax, 0
+    mov eax, [ebp+8] ;check if debug mode , the second argument 
+    cmp eax, 2
+    jnz keep_main
+    mov dword [isDebug], 1 ;in debug mode there are two arguments 1-path 2-"-d" 
+keep_main:    
     sub esp, 8 ;stack allignment
     call myCalc ;calling the main function 
     add esp, 8
-    ; preparing send to the fprintf
-    ;push dword [buffer_hex] ;return value TODO:CHECK
-    ;mov ebx, [stackOp]
-    ;push dword [ebx]
-    ;push format_string 
-    ;call printf
+    push isDebug
+    push format_hex
+    call printf
+    add esp, 8
     ;exit system call
     mov eax, 1 ;;SYS_EXIT
     mov ebx, 0 
@@ -179,9 +199,13 @@ con:
     cmp byte [buffer], 'n'
     jz n1bits
     cmp byte [buffer], 's'
-    jz square_root 
+    ;jz square_root 
     jmp push_number 
 end_func:
+    push dword [numOp] ;print num of opartion
+    push format_hex
+    call printf
+    add esp, 8
     endFunc
     ret 
 initialize_buffer:
@@ -191,9 +215,19 @@ initialize_buffer:
     inc ecx
     jmp initialize_buffer
 push_number:
+    cmp dword [isDebug], 1
+    jnz keep
+    push input_string
+    push format_string
+    call printf
+    add esp, 8
+    push buffer
+    push format_string
+    call printf
+    add esp,8
+keep:
     cmp dword [stp], 5
     jz overflow_error ; if stack is full print error
-    dec dword [numOp] ;;number is not operation
     mov ecx, 0; start counter to convertion action
     mov dword [index],0 ;restart index counter
     jmp delete_zero
@@ -294,7 +328,7 @@ add_rest_first:
 check_carry:
     cmp byte [carry], 1 ;if there is a carry after we add all bytes between the two numbers 
     jz add_carry_node
-    jmp last_digit
+    jmp last_digit_addition
 add_carry_node:
     push dword [bytes_to_malloc]  
     call malloc ; eax is the pointer that malloc returns 
@@ -305,7 +339,7 @@ add_carry_node:
     mov byte [eax], dl ;the first cell's value is the data (the sum)
     inc eax ;the address of 4 bytes of the pointer 
     mov [put], eax
-    jmp last_digit 
+    jmp last_digit_addition
     
 ;Function 
 make_addition: ;add two bytes the result is in dl 
@@ -327,8 +361,13 @@ save_carry:
 end_make_addition: 
     endFunc
     ret
-  
-    
+
+last_digit_addition: ;
+   mov ebx, [put]
+   mov dword [ebx], 0;last pointer to the zero byte 
+   inc dword [stp]; increse the number of numbers in the stack
+   jmp print_debug
+   
 pop_print: ;TODO FREE ;TODO check the printing when bytes are not the last and lower than F 
     inc dword [numOp]   ;count num of operations 
     cmp dword [stp], 0
@@ -389,7 +428,7 @@ duplicate:
     add [put], eax ;[put] - is stckOP + stp*4
 duplicate_loop:
     cmp dword [first_element],0
-    jz last_digit
+    jz last_digit_addition
     push dword [bytes_to_malloc]  
     call malloc ; eax is the pointer that malloc returns 
     add esp, 4 
@@ -411,7 +450,7 @@ pos_power:
 loop_shl:
     mov byte [carry], 0 ;rest carry
     cmp dword [second_element], 0 ;finished going threw Y
-    jz start_loop
+    jz print_debug
 loop_on_number:
     cmp dword [first_element], 0 ;end of number [first_element] is the address of the current node
     jz end_of_digit_shl    
@@ -463,7 +502,7 @@ neg_power:
     loop_shr:
     mov byte [carry] ,0 ;rest carry
     cmp dword [second_element] ,0
-    jz start_loop
+    jz print_debug
     call shr_fanction
     mov dword [first_element] , ecx ;restore begin of number
     dec dword [second_element]
@@ -521,14 +560,39 @@ check_free:
     mov dword eax, [put]
     mov dword [eax], 0 ; now put will point to zero
     ret
-n1bits:
-inc dword [numOp]   ;count num of operations 
-    jmp start_loop
-square_root:
-inc dword [numOp]   ;count num of operations 
-   jmp start_loop
+n1bits: ;TODO pop number and push the result
+    inc dword [numOp]   ;count num of operations 
+    cmp dword [stp], 0
+    jz insufficient_error  ;there is no element in the satck dec dword [stp] ;now will point on the top number
+    getAddress first_element
+    mov ebx, 0 ;count number of 1 bits
+    inc dword [stp]
+n1bits_loop:
+    cmp dword [first_element], 0
+    jz print_num_1bits
+    mov eax, [first_element]
+    mov ecx, 0
+    mov cl, [eax] ; get the number itself 
+    mov edx, 0 
+    push ebx
+    popcnt edx, ecx
+    pop ebx 
+    add ebx, edx 
+    ;next byte
+    push ebx
+    next_node first_element
+    pop ebx
+    jmp n1bits_loop 
 
-   
+print_num_1bits:
+    push ebx 
+    push format_hex
+    call printf
+    add esp, 8
+    mov ebx, ebx
+    jmp print_debug
+    
+
 error_Power:
     inc dword [stp]
     print_string over_200_string
@@ -540,7 +604,16 @@ overflow_error:
     print_string over_flow_string
     jmp start_loop
 
-    
+print_debug:
+    cmp dword [isDebug], 0
+    jz start_loop
+    print_string insert_string
+     dec dword [stp] ;so it will point to the place of the last emlement
+    mov eax, [stp]
+    mov ebx, [stackOp + eax*4] ;ebx is the address of the operand on the top of the stack
+    call print_num
+    inc dword [stp]
+    jmp next_line
 ;some help code
 delete_zero:
     cmp byte [buffer + ecx], 0 ;if reached end and all zerro
@@ -555,7 +628,7 @@ put_zero:
     jmp end_buffer_hex
     
 convert_to_hex:
-    mov [first_digit_not_zero], ecx ;the *index* of the first byte that is not zero in the buffer 
+    mov [first_digit_not_zero], ecx ;the index of the first byte that is not zero in the buffer 
 length:
     cmp byte [buffer + ecx], 0 ;end of string 
     jz check_even
@@ -615,4 +688,3 @@ end_buffer_hex:
     mov  ebx, [index]
     mov byte [buffer_hex + ebx], 'q'
     jmp start_push
-    
